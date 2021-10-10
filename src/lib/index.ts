@@ -79,6 +79,7 @@ export interface FormObject {
   readonly busy: boolean;
   readonly valid: boolean;
   readonly props: FormProps;
+  readonly dirty: boolean;
   submit(): void;
   reset(): void;
 }
@@ -92,6 +93,7 @@ export interface FieldObject {
   readonly status: Status;
   readonly dirty: boolean;
   readonly focused: boolean;
+  readonly touched: boolean;
   readonly error: any;
   readonly form: FormObject;
   readonly value: any;
@@ -144,6 +146,7 @@ interface InternalField extends FieldObject {
   text: string;
   dirty: boolean;
   focused: boolean;
+  touched: boolean;
   label: any;
   reset(): void;
 }
@@ -267,6 +270,7 @@ function createForm(
   let formValue: any;
   let validationPromise: Promise<void> | undefined;
   let validateToken: any;
+  let dirty = false;
   const errors = new Map<FieldObject | FormObject, any>();
   const promises: Promise<void>[] = [];
 
@@ -481,6 +485,9 @@ function createForm(
 
   const form = {
     id,
+    get dirty() {
+      return dirty;
+    },
     get valid() {
       return !errors.size;
     },
@@ -496,6 +503,7 @@ function createForm(
       validateForm(props.onSuccess, props.onError);
     },
     reset() {
+      dirty = false;
       formValue = undefined;
       validationPromise = undefined;
       Object.values(fields).forEach((field) => {
@@ -524,6 +532,7 @@ function createForm(
     renderField,
     (event, field) => {
       if (event === "onChange") {
+        dirty = true;
         validationPromise = undefined;
         if (props.mode === "onChange") {
           validateForm();
@@ -565,6 +574,7 @@ function createField(
     focused: false,
     error: undefined,
     label: undefined,
+    touched: false,
     get form() {
       return container.form;
     },
@@ -581,6 +591,7 @@ function createField(
     },
     reset() {
       field.status = "unknown";
+      field.touched = false;
       field.focused = false;
       field.dirty = false;
       field.validationPromise = undefined;
@@ -602,6 +613,7 @@ function createField(
       }
       container.setValue(path, value, () => {
         fieldValue = value;
+        field.touched = true;
         field.status = "unknown";
         field.dirty = true;
         field.validationPromise = undefined;
@@ -615,6 +627,7 @@ function createField(
       container.dispatch("onBlur", field);
     },
     onFocus() {
+      field.touched = true;
       field.focused = true;
       field.props.onFocus?.(field);
       container.dispatch("onFocus", field);
