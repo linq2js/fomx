@@ -100,6 +100,7 @@ export interface FieldObject {
 export interface FieldProps<T = any> {
   label?: any;
   name: FieldName;
+  text?: string;
   comp?: React.FunctionComponent<T> | React.ComponentClass<T> | string;
   props?: Partial<T> | ((field: FieldObject) => T);
   value?: any;
@@ -404,9 +405,10 @@ function createForm(
     }
     field.props = props;
     field.text =
-      typeof props.label === "string"
+      props.text ||
+      (typeof props.label === "string"
         ? props.label
-        : String(field.path.slice(-1));
+        : String(field.path.slice(-1)));
     fields[key] = field;
     return field;
   }
