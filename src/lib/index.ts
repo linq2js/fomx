@@ -142,7 +142,9 @@ interface FieldContainer extends ValueStore {
 }
 
 const providerContext = React.createContext<FormProviderProps>(null as any);
-const fieldContainerContext = React.createContext<FieldContainer>(null as any);
+const fieldContainerContext = React.createContext<{
+  container: FieldContainer;
+}>(null as any);
 const DEFAULT_VALUE = {};
 const NOOP = () => {};
 
@@ -198,7 +200,7 @@ export const Form = React.forwardRef<FormObject, FormProps>(
         ? props.children(form)
         : React.createElement(
             fieldContainerContext.Provider,
-            { value: form },
+            { value: { container: form } },
             props.children
           );
 
@@ -223,7 +225,7 @@ export function Field<T = any>({
   ...props
 }: React.PropsWithChildren<FieldProps<T>>) {
   const provider = React.useContext(providerContext) || {};
-  const container = React.useContext(fieldContainerContext);
+  const container = React.useContext(fieldContainerContext).container;
   if (!container) {
     throw new Error("No Form element found");
   }
@@ -574,7 +576,7 @@ function createFieldContainer(
         }
         return React.createElement(
           fieldContainerContext.Provider,
-          { value: field.container },
+          { value: { container: field.container } },
           typeof children === "function" ? children(field) : children
         );
       }
