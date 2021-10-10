@@ -446,10 +446,10 @@ function createForm(
     (event, field) => {
       if (event === "onChange") {
         validationPromise = undefined;
-        field.validationPromise = undefined;
-        field.dirty = true;
         if (props.mode === "onChange") {
           validateForm();
+        } else {
+          rerender();
         }
       } else if (event === "onBlur") {
         field.focused = false;
@@ -521,6 +521,7 @@ function createField(
       container.setValue(path, value, () => {
         fieldValue = value;
         field.dirty = true;
+        field.validationPromise = undefined;
         field.props.onChange?.(field);
         container.dispatch("onChange", field);
       });
