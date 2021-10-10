@@ -1,0 +1,6 @@
+{
+  "singleQuote": false,
+  "importOrder": ["^react", "^@", "^[./]"],
+  "importOrderSeparation": true,
+  "experimentalBabelParserPluginsList": ["jsx", "typescript"]
+}

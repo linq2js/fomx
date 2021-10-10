@@ -1,0 +1,75 @@
+{
+  "name": "fomx",
+  "version": "0.0.0",
+  "description": "Flexible React form",
+  "main": "dist/js/lib/index.js",
+  "module": "dist/es/lib/index.js",
+  "types": "dist/js/lib/index.d.ts",
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build:js": "rimraf dist/js && tsc",
+    "build:es": "rimraf dist/es && tsc -p tsconfig.es.json",
+    "build": "npm run build:js && npm run build:es",
+    "release": "standard-version && npm publish",
+    "release:major": "standard-version -r major && npm publish",
+    "push": "git push origin --tags && git push",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "sizes": "gzip-sizes ./dist/js/lib/**/*.js"
+  },
+  "keywords": [
+    "functional",
+    "async"
+  ],
+  "husky": {
+    "hooks": {
+      "commit-msg": "commitlint -E  HUSKY_GIT_PARAMS"
+    }
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ],
+    "rules": {
+      "subject-case": [
+        2,
+        "never",
+        [
+          "start-case",
+          "pascal-case"
+        ]
+      ]
+    }
+  },
+  "standard-version": {
+    "scripts": {
+      "prerelease": "npm run build"
+    }
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^13.1.0",
+    "@commitlint/config-conventional": "^13.1.0",
+    "@testing-library/react": "12.0.0",
+    "@testing-library/react-hooks": "7.0.2",
+    "@trivago/prettier-plugin-sort-imports": "^2.0.4",
+    "@types/jest": "^27.0.1",
+    "@types/node": "16.7.13",
+    "husky": "^7.0.2",
+    "jest": "^27.1.1",
+    "prettier": "^2.4.0",
+    "rimraf": "^3.0.2",
+    "standard-version": "^9.3.1",
+    "ts-jest": "^27.0.5",
+    "typescript": "4.4.2",
+    "gzip-sizes": "^1.0.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "dependencies": {}
+}

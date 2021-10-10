@@ -1,0 +1,17 @@
+{
+  "include": ["./src"],
+  "exclude": ["node_modules/*", "**/*.test.*"],
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "types": ["node", "@types/jest"],
+    "esModuleInterop": false,
+    "target": "ES5",
+    "lib": ["dom", "es2015"],
+    "strict": true,
+    "outDir": "./dist/js",
+    "declaration": true,
+    "rootDir": "./src",
+    "module": "commonjs",
+    "jsx": "react"
+  }
+}
