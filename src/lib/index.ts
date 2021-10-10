@@ -254,8 +254,6 @@ function createForm(
   function validateField(field: InternalField, shouldRerender: boolean) {
     if (!field.props.rules) return;
     if (!props.validate) return;
-    // no change
-    if (!formValue) return;
     const rules =
       typeof field.props.rules === "function"
         ? field.props.rules(formValue)
