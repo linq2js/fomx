@@ -264,6 +264,7 @@ function createForm(
   let prevFields: Record<string, InternalField>;
   let formValue: any;
   let validationPromise: Promise<void> | undefined;
+  let validateToken: any;
   const errors = new Map<FieldObject | FormObject, any>();
   const promises: Promise<void>[] = [];
 
@@ -362,7 +363,7 @@ function createForm(
     promises.length = 0;
     errors.clear();
     const value = getValue();
-
+    validateToken = {};
     validationPromise = undefined;
 
     Object.values(fields).forEach((field) => {
@@ -426,7 +427,13 @@ function createForm(
     }
 
     if (promises.length) {
+      const token = validateToken;
       Promise.all(promises).finally(() => {
+        if (token !== validateToken) {
+          return;
+        }
+
+        promises.length = 0;
         if (errors.size) {
           onError && onError(Array.from(errors.values()), value);
         }
