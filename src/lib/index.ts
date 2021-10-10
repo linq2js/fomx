@@ -39,6 +39,7 @@ export interface ValidationContext {
   rules: any;
   field?: FieldObject;
   text?: string;
+  data?: any;
   update(value: any): void;
 }
 
@@ -62,6 +63,7 @@ export interface FormProps {
   value?: FormValue;
   rules?: ((value: any) => any) | any;
   validate?: Validator;
+  onValidate?: (value: any) => any;
   onChange?: (value: any) => void;
   onSubmit?: (value: any) => void;
   onSuccess?: (value: any) => void;
@@ -109,6 +111,7 @@ export interface FieldProps<T = any> {
   blur?: boolean | string;
   focus?: boolean | string;
   change?: string;
+  onValidate?: (field: FieldObject) => void;
   onChange?: (field: FieldObject) => void;
   onFocus?: (field: FieldObject) => void;
   onBlur?: (field: FieldObject) => void;
@@ -283,21 +286,23 @@ function createForm(
       return;
     }
 
+    const value = field.value;
     const rules =
       typeof field.props.rules === "function"
         ? field.props.rules(formValue)
         : field.props.rules;
-    const value = field.value;
+
     field.status = "busy";
     field.error = undefined;
     try {
-      const result = props.validate({
+      let result = props.validate({
         type: "field",
         field,
         form,
         text: field.text,
         value,
         rules,
+        data: field.props.data,
         update: (nomalizedValue) => {
           if (nomalizedValue === value) return;
           container.setValue(field.path, nomalizedValue, undefined, {
@@ -305,28 +310,41 @@ function createForm(
           });
         },
       });
+      let onValidate = field.props.onValidate;
+
+      if (!(result && typeof result.then === "function")) {
+        if (onValidate) {
+          result = onValidate(field);
+          onValidate = undefined;
+        } else {
+          field.status = "valid";
+        }
+      }
+
       // async validation
       if (result && typeof result.then === "function") {
         field.validationPromise = result;
-        return new Promise<void>((resolve, reject) => {
+        return new Promise<void>((resolve) => {
           result
             .then(() => {
               if (result !== field.validationPromise) return;
+              return onValidate && onValidate(field);
+            })
+            .then(() => {
+              if (result !== field.validationPromise) return;
               field.status = "valid";
-              rerender();
               resolve();
+              rerender();
             })
             .catch((error: any) => {
               if (result !== field.validationPromise) return;
               field.status = "invalid";
               field.error = error;
               errors.set(field, error);
+              resolve();
               rerender();
-              reject();
             });
         });
-      } else {
-        field.status = "valid";
       }
     } catch (error) {
       field.error = error;
@@ -348,35 +366,6 @@ function createForm(
 
     validationPromise = undefined;
 
-    if (props.rules && props.validate) {
-      const rules =
-        typeof props.rules === "function" ? props.rules(form) : props.rules;
-      try {
-        const result = props.validate({
-          type: "form",
-          form,
-          value,
-          rules,
-          update: NOOP,
-        });
-        if (result && typeof result.then === "function") {
-          validationPromise = result;
-          result
-            .then(() => {
-              if (result !== validationPromise) return;
-              validationPromise = undefined;
-            })
-            .catch((error: any) => {
-              if (result !== validationPromise) return;
-              validationPromise = undefined;
-              errors.set(form, error);
-            });
-        }
-      } catch (e) {
-        errors.set(form, e);
-      }
-    }
-
     Object.values(fields).forEach((field) => {
       const result = validateField(field, false);
       if (result && typeof result.then) {
@@ -384,14 +373,68 @@ function createForm(
       }
     });
 
+    const validators: ((form: FormObject) => any)[] = [];
+
+    if (props.rules && props.validate) {
+      validators.push(() => {
+        const rules =
+          typeof props.rules === "function" ? props.rules(form) : props.rules;
+
+        return props.validate?.({
+          type: "form",
+          form,
+          value,
+          rules,
+          update: NOOP,
+        });
+      });
+    }
+
+    if (props.onValidate) {
+      validators.push(props.onValidate);
+    }
+
+    if (validators.length) {
+      const callValidator = (): any => {
+        validationPromise = undefined;
+
+        const validator = validators.shift();
+        if (!validator) return;
+
+        try {
+          const result = validator(form);
+          if (result && typeof result.then === "function") {
+            validationPromise = result;
+            return result
+              .then(() => {
+                if (result !== validationPromise) return;
+                return callValidator();
+              })
+              .catch((error: any) => {
+                if (result !== validationPromise) return;
+                validationPromise = undefined;
+                errors.set(form, error);
+              });
+          }
+          return callValidator();
+        } catch (e) {
+          errors.set(form, e);
+          validationPromise = undefined;
+        }
+      };
+
+      callValidator();
+    }
+
     if (promises.length) {
       Promise.all(promises).finally(() => {
         if (errors.size) {
-          onError;
+          onError && onError(Array.from(errors.values()), value);
         }
+        rerender();
       });
     } else if (errors.size) {
-      onError?.(Array.from(errors.values()), value);
+      onError && onError(Array.from(errors.values()), value);
     } else {
       onSuccess?.(value);
     }
