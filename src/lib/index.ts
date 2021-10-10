@@ -34,8 +34,11 @@ export type FormRenderer = (
 
 export interface ValidationContext {
   type: "form" | "field";
+  form: FormObject;
   value: any;
   rules: any;
+  field?: FieldObject;
+  text?: string;
   update(value: any): void;
 }
 
@@ -265,6 +268,9 @@ function createForm(
     try {
       const result = props.validate({
         type: "field",
+        field,
+        form,
+        text: field.text,
         value,
         rules,
         update: (nomalizedValue) => {
@@ -323,6 +329,7 @@ function createForm(
       try {
         const result = props.validate({
           type: "form",
+          form,
           value,
           rules,
           update: NOOP,
