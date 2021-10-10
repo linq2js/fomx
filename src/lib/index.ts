@@ -40,7 +40,7 @@ export interface ValidationContext {
   field?: FieldObject;
   text?: string;
   data?: any;
-  update(value: any): void;
+  transform(value: any): void;
 }
 
 export interface ValidationError {
@@ -95,6 +95,7 @@ export interface FieldObject {
   readonly error: any;
   readonly form: FormObject;
   readonly value: any;
+  readonly label: any;
   onChange(value: any): void;
   onBlur(): void;
   onFocus(): void;
@@ -143,6 +144,7 @@ interface InternalField extends FieldObject {
   text: string;
   dirty: boolean;
   focused: boolean;
+  label: any;
   reset(): void;
 }
 
@@ -303,7 +305,7 @@ function createForm(
         value,
         rules,
         data: field.props.data,
-        update: (nomalizedValue) => {
+        transform: (nomalizedValue) => {
           if (nomalizedValue === value) return;
           container.setValue(field.path, nomalizedValue, undefined, {
             forceUpdate: true,
@@ -385,7 +387,7 @@ function createForm(
           form,
           value,
           rules,
-          update: NOOP,
+          transform: NOOP,
         });
       });
     }
@@ -459,11 +461,15 @@ function createForm(
     } else {
       field = createField(container, `${id}__${key}`, key, path);
     }
+    field.label =
+      typeof props.label === "function"
+        ? React.createElement(props.label, field)
+        : props.label;
     field.props = props;
     field.text =
       props.text ||
-      (typeof props.label === "string"
-        ? props.label
+      (typeof field.label === "string"
+        ? field.label
         : String(field.path.slice(-1)));
     fields[key] = field;
     return field;
@@ -558,6 +564,7 @@ function createField(
     dirty: false,
     focused: false,
     error: undefined,
+    label: undefined,
     get form() {
       return container.form;
     },
