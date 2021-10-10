@@ -1,6 +1,6 @@
 {
   "name": "fomx",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Flexible React form",
   "main": "dist/js/lib/index.js",
   "module": "dist/es/lib/index.js",
