@@ -12,7 +12,7 @@ export type StoreSetter = (value: any, options: any) => void;
 
 export type FieldEvent = "onChange" | "onBlur" | "onSubmit" | "onFocus";
 
-export type Status = "initial" | "busy" | "valid" | "invalid";
+export type Status = "unknown" | "busy" | "valid" | "invalid";
 
 export type Validator = (context: ValidationContext) => any;
 
@@ -260,6 +260,21 @@ function createForm(
   function validateField(field: InternalField, shouldRerender: boolean) {
     if (!field.props.rules) return;
     if (!props.validate) return;
+
+    if (field.status === "busy" && field.validationPromise) {
+      promises.push(field.validationPromise);
+      return;
+    }
+
+    if (field.status === "invalid" && field.error) {
+      errors.set(field, field.error);
+      return;
+    }
+
+    if (field.status === "valid") {
+      return;
+    }
+
     const rules =
       typeof field.props.rules === "function"
         ? field.props.rules(formValue)
@@ -479,7 +494,7 @@ function createField(
     path,
     text: "",
     props: null as any,
-    status: "initial",
+    status: "unknown",
     dirty: false,
     focused: false,
     error: undefined,
@@ -498,7 +513,7 @@ function createField(
       return container.getValue(field.path);
     },
     reset() {
-      field.status = "initial";
+      field.status = "unknown";
       field.focused = false;
       field.dirty = false;
       field.validationPromise = undefined;
@@ -520,6 +535,7 @@ function createField(
       }
       container.setValue(path, value, () => {
         fieldValue = value;
+        field.status = "unknown";
         field.dirty = true;
         field.validationPromise = undefined;
         field.props.onChange?.(field);
