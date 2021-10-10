@@ -206,14 +206,13 @@ export const Form = React.forwardRef<FormObject, FormProps>(
       [form]
     );
 
-    const content =
+    const content = React.createElement(
+      fieldContainerContext.Provider,
+      { value: { container: form } },
       typeof props.children === "function"
         ? props.children(form)
-        : React.createElement(
-            fieldContainerContext.Provider,
-            { value: { container: form } },
-            props.children
-          );
+        : props.children
+    );
 
     if (provider.renderForm) {
       return provider.renderForm(form, content);
