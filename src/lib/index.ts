@@ -80,6 +80,7 @@ export interface FormObject {
 export interface FieldObject {
   key: string;
   id: string;
+  text: string;
   path: FieldPath;
   props: FieldProps;
   status: Status;
@@ -378,6 +379,10 @@ function createForm(
       field = createField(container, `${id}__${key}`, key, path);
     }
     field.props = props;
+    field.text =
+      typeof props.label === "string"
+        ? props.label
+        : String(field.path.slice(-1));
     fields[key] = field;
     return field;
   }
@@ -463,6 +468,7 @@ function createField(
     key,
     id,
     path,
+    text: "",
     props: null as any,
     status: "initial",
     dirty: false,
