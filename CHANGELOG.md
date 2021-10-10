@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.7](https://github.com/linq2js/fomx/compare/v0.0.6...v0.0.7) (2021-10-10)
+
+
+### Bug Fixes
+
+* optmize field change ([9625bca](https://github.com/linq2js/fomx/commit/9625bca39c2a80017e0ef58b218541e6a6e36619))
+
 ### [0.0.6](https://github.com/linq2js/fomx/compare/v0.0.5...v0.0.6) (2021-10-10)
 
 
