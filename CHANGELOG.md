@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.12](https://github.com/linq2js/fomx/compare/v0.0.11...v0.0.12) (2021-10-10)
+
+
+### Bug Fixes
+
+* async validating ([522d2be](https://github.com/linq2js/fomx/commit/522d2bef45a3ddb8a34628b6706dd31668dd9efe))
+
 ### [0.0.11](https://github.com/linq2js/fomx/compare/v0.0.10...v0.0.11) (2021-10-10)
 
 
