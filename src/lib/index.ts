@@ -76,20 +76,21 @@ export interface FormObject {
   readonly value: any;
   readonly busy: boolean;
   readonly valid: boolean;
+  readonly props: FormProps;
   submit(): void;
   reset(): void;
 }
 
 export interface FieldObject {
-  key: string;
-  id: string;
-  text: string;
-  path: FieldPath;
-  props: FieldProps;
-  status: Status;
-  dirty: boolean;
-  focused: boolean;
-  error: any;
+  readonly key: string;
+  readonly id: string;
+  readonly text: string;
+  readonly path: FieldPath;
+  readonly props: FieldProps;
+  readonly status: Status;
+  readonly dirty: boolean;
+  readonly focused: boolean;
+  readonly error: any;
   readonly form: FormObject;
   readonly value: any;
   onChange(value: any): void;
@@ -133,6 +134,12 @@ interface InternalForm extends FieldContainer, FormObject {
 interface InternalField extends FieldObject {
   container?: FieldContainer;
   validationPromise?: Promise<any>;
+  status: Status;
+  error: any;
+  props: FieldProps;
+  text: string;
+  dirty: boolean;
+  focused: boolean;
   reset(): void;
 }
 
@@ -469,10 +476,12 @@ function createForm(
           rerender();
         }
       } else if (event === "onBlur") {
-        field.focused = false;
-        rerender();
+        if (props.mode === "onBlur") {
+          validateForm();
+        } else {
+          rerender();
+        }
       } else if (event === "onFocus") {
-        field.focused = true;
         rerender();
       }
     }
@@ -545,10 +554,12 @@ function createField(
       });
     },
     onBlur() {
+      field.focused = false;
       field.props.onBlur?.(field);
       container.dispatch("onBlur", field);
     },
     onFocus() {
+      field.focused = true;
       field.props.onFocus?.(field);
       container.dispatch("onFocus", field);
     },
