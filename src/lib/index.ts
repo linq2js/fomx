@@ -919,6 +919,13 @@ function createFieldContainer(
       const rerender = React.useState<any>()[1];
       const field = register(props.name, props);
 
+      React.useEffect(() => {
+        if (props.actions) return;
+        return () => {
+          (field.form as InternalForm).unregister(field);
+        };
+      }, [props.actions, field]);
+
       if (props.actions) {
         return typeof children === "function" ? children(field) : children;
       }
