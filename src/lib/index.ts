@@ -12,6 +12,8 @@ export type StoreSetter = (value: any, options: any) => void;
 
 export type FieldEvent = "onChange" | "onBlur" | "onSubmit" | "onFocus";
 
+export type FormMode = FieldEvent;
+
 export type Status = "unknown" | "busy" | "valid" | "invalid";
 
 export type Validator = (context: ValidationContext) => any;
@@ -23,33 +25,36 @@ export type EventDispatcher = (
 ) => void;
 
 export type FieldRenderer = (
-  field: FieldObject,
+  field: FieldRef,
   content: React.ReactNode
 ) => React.ReactNode;
 
 export type FormRenderer = (
-  form: FormObject,
+  form: FormRef,
   content: React.ReactNode
 ) => React.ReactNode;
 
 export interface ValidationContext {
   type: "form" | "field";
-  form: FormObject;
+  form: FormRef;
   value: any;
   rules: any;
-  field?: FieldObject;
+  field?: FieldRef;
   text?: string;
   data?: any;
   transform(value: any): void;
 }
 
 export interface ValidationError {
-  form: FormObject;
-  field?: FieldObject;
+  form: FormRef;
+  field?: FieldRef;
   error: any;
 }
 
 export interface FormProviderProps {
+  mode?: FormMode;
+  comp?: React.FunctionComponent<any> | React.ComponentClass<any> | string;
+  isolated?: boolean;
   validate?: Validator;
   native?: boolean;
   blur?: boolean | string;
@@ -59,7 +64,8 @@ export interface FormProviderProps {
 }
 
 export interface FormProps {
-  mode?: FieldEvent;
+  isolated?: boolean;
+  mode?: FormMode;
   value?: FormValue;
   rules?: ((value: any) => any) | any;
   validate?: Validator;
@@ -69,11 +75,32 @@ export interface FormProps {
   onSuccess?: (value: any) => void;
   onError?: (errors: ValidationError[], value: any) => void;
   native?: boolean;
-  children?: React.ReactNode | ((form: FormObject) => React.ReactNode);
+  children?: React.ReactNode | ((form: FormRef) => React.ReactNode);
   props?: React.FormHTMLAttributes<any>;
 }
 
-export interface FormObject {
+export interface ArrayMethods {
+  push(...values: any[]): void;
+  pop(): any;
+  unshift(...values: any[]): void;
+  shift(): any;
+  clear(): void;
+  remove(...indexes: number[]): void;
+  filter(predicate: (value: any, index: number) => boolean): void;
+  swap(from: number, to: number): void;
+  splice(index: number, count?: number, ...values: any[]): any[];
+  replace(withValue: any, ...values: any[]): void;
+  fill(value: any): void;
+  insert(index: number, ...values: any[]): void;
+}
+
+export interface FieldArrayProps {
+  field: FieldRef;
+  props: FieldProps;
+  children: any;
+}
+
+export interface FormRef {
   readonly id: string;
   readonly value: any;
   readonly busy: boolean;
@@ -84,7 +111,7 @@ export interface FormObject {
   reset(): void;
 }
 
-export interface FieldObject {
+export interface FieldRef<T = any> extends ArrayMethods {
   readonly key: string;
   readonly id: string;
   readonly text: string;
@@ -95,12 +122,16 @@ export interface FieldObject {
   readonly focused: boolean;
   readonly touched: boolean;
   readonly error: any;
-  readonly form: FormObject;
-  readonly value: any;
+  readonly form: FormRef;
+  readonly value: T;
   readonly label: any;
-  onChange(value: any): void;
+  readonly ref: any;
+  readonly index?: number;
+  $ref?: React.MutableRefObject<any>;
+  onChange(value: T): void;
   onBlur(): void;
   onFocus(): void;
+  update(value: T): void;
 }
 
 export interface FieldProps<T = any> {
@@ -108,19 +139,22 @@ export interface FieldProps<T = any> {
   name: FieldName;
   text?: string;
   comp?: React.FunctionComponent<T> | React.ComponentClass<T> | string;
-  props?: Partial<T> | ((field: FieldObject) => T);
+  props?: Partial<T> | ((field: FieldRef) => T);
   value?: any;
   rules?: any;
   blur?: boolean | string;
   focus?: boolean | string;
   change?: string;
-  onValidate?: (field: FieldObject) => void;
-  onChange?: (field: FieldObject) => void;
-  onFocus?: (field: FieldObject) => void;
-  onBlur?: (field: FieldObject) => void;
+  onValidate?: (field: FieldRef) => void;
+  onChange?: (field: FieldRef) => void;
+  onFocus?: (field: FieldRef) => void;
+  onBlur?: (field: FieldRef) => void;
   data?: any;
+  index?: number;
   group?: boolean;
-  children?: React.ReactNode | ((field: FieldObject) => React.ReactNode);
+  item?: boolean | ((value: any, index: number) => any);
+  actions?: boolean;
+  children?: React.ReactNode | ((field: FieldRef) => React.ReactNode);
 }
 
 interface ValueStore {
@@ -133,27 +167,35 @@ interface ValueStore {
   ): void;
 }
 
-interface InternalForm extends FieldContainer, FormObject {
+interface InternalForm extends FieldContainer, FormRef {
+  readonly changeToken: any;
+  unregister(field: InternalField): void;
   update(props: FormProps): void;
+  invalidate(key: string): void;
 }
 
-interface InternalField extends FieldObject {
+interface InternalField extends FieldRef {
   container?: FieldContainer;
   validationPromise?: Promise<any>;
+  ref: any;
   status: Status;
   error: any;
+  index?: number;
   props: FieldProps;
   text: string;
   dirty: boolean;
   focused: boolean;
   touched: boolean;
   label: any;
+  $rerender?: () => void;
+  invalidate(): void;
+  rerender(): void;
   reset(): void;
 }
 
 interface FieldContainer extends ValueStore {
-  readonly form: FormObject;
-  render(props: FieldProps<any>, children: any): any;
+  readonly form: FormRef;
+  Render(props: FieldProps<any>, children: any): any;
   dispatch(event: FieldEvent, field: InternalField): void;
 }
 
@@ -163,6 +205,7 @@ const fieldContainerContext = React.createContext<{
 }>(null as any);
 const DEFAULT_VALUE = {};
 const NOOP = () => {};
+const EMPTY_ARRAY: any[] = [];
 
 export const FormProvider: React.FC<FormProviderProps> = ({
   children,
@@ -175,65 +218,63 @@ export const FormProvider: React.FC<FormProviderProps> = ({
   );
 };
 
-export const Form = React.forwardRef<FormObject, FormProps>(
-  (props, ref): any => {
-    const provider = React.useContext(providerContext) || {};
-    const {
-      native = provider.native,
-      validate = provider.validate,
-      mode = "onSubmit",
-      props: htmlFormProps,
-      ...otherProps
-    } = props;
-    const formRef = React.useRef<InternalForm>();
-    const rerender = React.useState()[1];
-    const form =
-      formRef.current ||
-      (formRef.current = createForm(
-        () => rerender({} as any),
-        provider.renderField
-      ));
+export const Form = React.forwardRef<FormRef, FormProps>((props, ref): any => {
+  const provider = React.useContext(providerContext) || {};
+  const {
+    native = provider.native,
+    validate = provider.validate,
+    mode = provider.mode || "onSubmit",
+    isolated = provider.isolated,
+    props: htmlFormProps,
+    ...otherProps
+  } = props;
+  const formRef = React.useRef<InternalForm>();
+  const rerender = React.useState()[1];
+  const form =
+    formRef.current ||
+    (formRef.current = createForm(
+      () => rerender({} as any),
+      provider.renderField
+    ));
 
-    form.update({
-      mode,
-      validate,
-      native,
-      ...otherProps,
-    });
+  form.update({
+    mode,
+    validate,
+    native,
+    isolated,
+    ...otherProps,
+  });
 
-    React.useImperativeHandle(ref, () => form);
+  React.useImperativeHandle(ref, () => form);
 
-    const handleSubmit = React.useCallback(
-      (e: React.SyntheticEvent) => {
-        e.preventDefault();
-        form.submit();
-      },
-      [form]
-    );
+  const handleSubmit = React.useCallback(
+    (e: React.SyntheticEvent) => {
+      e.preventDefault();
+      form.submit();
+    },
+    [form]
+  );
 
-    const content = React.createElement(
-      fieldContainerContext.Provider,
-      { value: { container: form } },
-      typeof props.children === "function"
-        ? props.children(form)
-        : props.children
-    );
+  const content = React.createElement(
+    fieldContainerContext.Provider,
+    { value: { container: form } },
+    typeof props.children === "function" ? props.children(form) : props.children
+  );
 
-    if (provider.renderForm) {
-      return provider.renderForm(form, content);
-    }
-
-    if (native) {
-      return content;
-    }
-
-    return React.createElement("form", {
-      ...htmlFormProps,
-      onSubmit: handleSubmit,
-      children: content,
-    });
+  if (provider.renderForm) {
+    return provider.renderForm(form, content);
   }
-);
+
+  if (native) {
+    return content;
+  }
+
+  return React.createElement("form", {
+    ...htmlFormProps,
+    onSubmit: handleSubmit,
+    children: content,
+  });
+});
 
 export function Field<T = any>({
   children,
@@ -244,11 +285,19 @@ export function Field<T = any>({
   if (!container) {
     throw new Error("No Form element found");
   }
-  return container.render(
+  const {
+    blur = provider.blur,
+    focus = provider.focus,
+    comp = provider.comp || "input",
+    ...otherProps
+  } = props;
+
+  return container.Render(
     {
-      blur: provider.blur,
-      focus: provider.focus,
-      ...props,
+      blur,
+      focus,
+      comp,
+      ...otherProps,
     },
     children
   );
@@ -270,8 +319,9 @@ function createForm(
   let formValue: any;
   let validationPromise: Promise<void> | undefined;
   let validateToken: any;
+  let changeToken = {};
   let dirty = false;
-  const errors = new Map<FieldObject | FormObject, any>();
+  const errors = new Map<FieldRef | FormRef, any>();
   const promises: Promise<void>[] = [];
 
   function validateField(field: InternalField, shouldRerender: boolean) {
@@ -379,7 +429,7 @@ function createForm(
       }
     });
 
-    const validators: ((form: FormObject) => any)[] = [];
+    const validators: ((form: FormRef) => any)[] = [];
 
     if (props.rules && props.validate) {
       validators.push(() => {
@@ -456,7 +506,7 @@ function createForm(
 
   function register(name: FieldName, props: FieldProps) {
     const path = Array.isArray(name) ? name : [name];
-    const key = path.join("/");
+    const key = getKeyFromPath(path);
     let field: InternalField;
     if (key in fields) {
       field = fields[key];
@@ -465,16 +515,22 @@ function createForm(
     } else {
       field = createField(container, `${id}__${key}`, key, path);
     }
-    field.label =
-      typeof props.label === "function"
-        ? React.createElement(props.label, field)
-        : props.label;
-    field.props = props;
-    field.text =
-      props.text ||
-      (typeof field.label === "string"
-        ? field.label
-        : String(field.path.slice(-1)));
+    if (!props.actions) {
+      field.index = props.index;
+      field.props = props;
+
+      field.label =
+        typeof props.label === "function"
+          ? React.createElement(props.label, field)
+          : props.label;
+
+      field.text =
+        props.text ||
+        (typeof field.label === "string"
+          ? field.label
+          : String(field.path.slice(-1)));
+    }
+
     fields[key] = field;
     return field;
   }
@@ -497,6 +553,17 @@ function createForm(
     get value() {
       return getValue();
     },
+    get changeToken() {
+      return changeToken;
+    },
+    invalidate(path) {
+      const allFields = { ...prevFields, ...fields };
+      Object.keys(allFields).forEach((key) => {
+        if (key.startsWith(path)) {
+          allFields[key].invalidate();
+        }
+      });
+    },
     submit() {
       const value = getValue();
       props.onSubmit?.(value);
@@ -516,6 +583,13 @@ function createForm(
       prevFields = fields;
       fields = {};
     },
+    unregister(field) {
+      const key = getKeyFromPath(field.path);
+      if (prevFields) {
+        delete prevFields[key];
+      }
+      delete fields[key];
+    },
   } as InternalForm;
 
   const container = createFieldContainer(
@@ -531,22 +605,42 @@ function createForm(
     register,
     renderField,
     (event, field) => {
+      let shouldValidate = false;
+      let shouldRererender = false;
+
       if (event === "onChange") {
         dirty = true;
         validationPromise = undefined;
+        changeToken = {};
         if (props.mode === "onChange") {
-          validateForm();
+          shouldValidate = true;
         } else {
-          rerender();
+          shouldRererender = true;
         }
       } else if (event === "onBlur") {
         if (props.mode === "onBlur") {
+          shouldValidate = true;
+        } else {
+          shouldRererender = true;
+        }
+      } else if (event === "onFocus") {
+        shouldRererender = true;
+      }
+
+      if (shouldValidate) {
+        if (props.isolated) {
+          validateField(field, !shouldRererender);
+        } else {
           validateForm();
+        }
+      }
+
+      if (shouldRererender) {
+        if (props.isolated) {
+          field.rerender();
         } else {
           rerender();
         }
-      } else if (event === "onFocus") {
-        rerender();
       }
     }
   );
@@ -556,6 +650,45 @@ function createForm(
   return form;
 }
 
+function createArrayUtil(
+  getter: () => any[],
+  setter: (value: any[]) => void,
+  modifier: (
+    original: () => any[],
+    modified: (newArray?: any[]) => any[],
+    args: any[]
+  ) => any
+) {
+  return (...args: any[]) => {
+    let original: any[] | undefined = undefined;
+    let modified: any[] | undefined = undefined;
+    const getOriginal = () => {
+      if (!original) {
+        original = getter() || EMPTY_ARRAY;
+      }
+      return original;
+    };
+    function getModified(newArray?: any[]) {
+      if (arguments.length && newArray) {
+        modified = newArray;
+        return modified;
+      }
+
+      if (!modified) {
+        modified = getOriginal().slice();
+      }
+      return modified;
+    }
+    const result = modifier(getOriginal, getModified, args);
+
+    if (modified) {
+      setter(modified);
+    }
+
+    return result;
+  };
+}
+
 function createField(
   container: FieldContainer,
   id: string,
@@ -563,18 +696,24 @@ function createField(
   path: FieldPath
 ) {
   let fieldValue: any;
+  const get = () => field.value;
+  const set = (value: any) => field.update(value);
+
   const field: InternalField = {
     key,
     id,
     path,
     text: "",
-    props: null as any,
+    props: {} as any,
     status: "unknown",
     dirty: false,
     focused: false,
     error: undefined,
     label: undefined,
     touched: false,
+    get ref() {
+      return field.$ref?.current;
+    },
     get form() {
       return container.form;
     },
@@ -588,6 +727,13 @@ function createField(
       }
 
       return container.getValue(field.path);
+    },
+    invalidate() {
+      if (!field.dirty) return;
+      fieldValue = container.getValue(field.path);
+    },
+    rerender() {
+      field.$rerender?.();
     },
     reset() {
       field.status = "unknown";
@@ -611,6 +757,9 @@ function createField(
           value = target.value;
         }
       }
+      field.update(value);
+    },
+    update(value) {
       container.setValue(path, value, () => {
         fieldValue = value;
         field.touched = true;
@@ -632,13 +781,125 @@ function createField(
       field.props.onFocus?.(field);
       container.dispatch("onFocus", field);
     },
+    pop: createArrayUtil(get, set, (o, m) => {
+      if (!o().length) return undefined;
+      return m().pop();
+    }),
+    shift: createArrayUtil(get, set, (o, m) => {
+      if (!o().length) return undefined;
+      return m().shift();
+    }),
+    remove: createArrayUtil(get, set, (o, m, indexes) => {
+      const original = o();
+      if (!original.length) return;
+      if (indexes.length) {
+        indexes = indexes.filter((x) => x < original.length).sort();
+      }
+      if (!indexes.length) return;
+      const modified = m();
+      while (indexes.length) {
+        modified.splice(indexes.shift(), 1);
+      }
+    }),
+    replace: createArrayUtil(get, set, (o, m, [widthValue, ...values]) => {
+      const original = o();
+      if (!original.length) return;
+      const indexes: number[] = [];
+      if (values.length === 1) {
+        const value = values[0];
+        original.forEach((x, i) => x === value && indexes.push(i));
+      } else {
+        original.forEach((x, i) => {
+          values.includes(x) && indexes.push(i);
+        });
+      }
+      if (indexes.length) {
+        const modified = m();
+        while (indexes.length) {
+          modified[indexes.shift() || 0] = widthValue;
+        }
+      }
+    }),
+    push: createArrayUtil(get, set, (_, m, items) => {
+      if (!items.length) return;
+      m().push(...items);
+    }),
+    unshift: createArrayUtil(get, set, (_, m, items) => {
+      if (!items.length) return;
+      m().unshift(...items);
+    }),
+    clear: createArrayUtil(get, set, (o, m) => {
+      if (!o().length) return;
+      m([]);
+    }),
+    fill: createArrayUtil(get, set, (o, m, [value]) => {
+      if (!o().length) return;
+      m(new Array(o().length).fill(value));
+    }),
+    filter: createArrayUtil(get, set, (o, m, [predicate]) => {
+      if (!o().length) return;
+      m(o().filter(predicate));
+    }),
+    swap: createArrayUtil(get, set, (o, m, [from, to]) => {
+      const original = o();
+      if (!original.length) return;
+
+      if (from < 0) {
+        from = 0;
+      } else if (from > original.length - 1) {
+        from = original.length - 1;
+      }
+      if (to < 0) {
+        to = 0;
+      } else if (to > original.length - 1) {
+        to = original.length - 1;
+      }
+      if (from === to) return;
+      const modified = m();
+      [modified[to], modified[from]] = [modified[from], modified[to]];
+    }),
+    insert: createArrayUtil(get, set, (o, m, [index, ...values]) => {
+      const original = o();
+      if (index < 0) {
+        index = 0;
+      } else if (index >= original.length) {
+        index = original.length;
+      }
+      m().splice(index, 0, ...values);
+    }),
+    splice: createArrayUtil(get, set, (o, m, [index, count, ...values]) => {
+      const original = o();
+      if (!original.length) {
+        // nothing to insert
+        if (!values.length) return [];
+        m().splice(index, count, ...values);
+      }
+      // remove action
+      if (!values.length) {
+        // nothing to remove
+        if (index > original.length - 1 || !count) return [];
+        return m().splice(index, count);
+      }
+      return m().splice(index, count, ...values);
+    }),
   };
 
   return field;
 }
 
+function getKeyFromName(name: FieldName) {
+  if (Array.isArray(name)) {
+    return getKeyFromPath(name);
+  }
+  return String(name);
+}
+
+function getKeyFromPath(path: FieldPath) {
+  return path.join("$");
+}
+
 function createFieldContainer(
-  form: FormObject,
+  form: InternalForm,
   getter: StoreGetter,
   setter: StoreSetter,
   register: (name: FieldName, props: FieldProps) => InternalField,
@@ -653,8 +914,15 @@ function createFieldContainer(
     dispatch(...args) {
       dispatch(...args);
     },
-    render(props, children) {
+    Render(props, children) {
+      const ref = React.useRef<any>();
+      const rerender = React.useState<any>()[1];
       const field = register(props.name, props);
+
+      if (props.actions) {
+        return typeof children === "function" ? children(field) : children;
+      }
+
       // is group
       if (props.group) {
         if (!field.container) {
@@ -680,37 +948,65 @@ function createFieldContainer(
         );
       }
 
+      field.$ref = ref;
+      field.$rerender = () => rerender({});
+
       if (typeof children === "function") {
         return children(field);
       }
 
-      const mappedProps: Record<string, any> = {
-        value: field.value,
-        [props.change || "onChange"]: field.onChange,
-      };
+      let content: React.ReactNode = undefined;
 
-      if (field.props.blur) {
-        mappedProps[
-          typeof field.props.blur === "string" ? field.props.blur : "onBlur"
-        ] = field.onBlur;
+      if (props.comp) {
+        if (props.item) {
+          content = React.createElement(FieldArray, { field, props, children });
+        } else {
+          const mappedProps: Record<string, any> = {
+            ref,
+            value: field.value,
+            [props.change || "onChange"]: field.onChange,
+          };
+
+          if (field.props.blur) {
+            mappedProps[
+              typeof field.props.blur === "string" ? field.props.blur : "onBlur"
+            ] = field.onBlur;
+          }
+
+          if (field.props.focus) {
+            mappedProps[
+              typeof field.props.focus === "string"
+                ? field.props.focus
+                : "onFocus"
+            ] = field.onFocus;
+          }
+
+          content = React.createElement(field.props.comp || "input", {
+            ...mappedProps,
+            ...(typeof field.props.props === "function"
+              ? field.props.props(field)
+              : field.props.props),
+          });
+        }
       }
-
-      if (field.props.focus) {
-        mappedProps[
-          typeof field.props.focus === "string" ? field.props.focus : "onFocus"
-        ] = field.onFocus;
-      }
-
-      const content = React.createElement(field.props.comp || "input", {
-        ...mappedProps,
-        ...(typeof field.props.props === "function"
-          ? field.props.props(field)
-          : field.props.props),
-      });
-
       return renderField ? renderField(field, content) : content;
     },
   };
+}
+
+function FieldArray({ field, props, children }: FieldArrayProps): any {
+  const array: any[] = field.value || [];
+
+  return array.map((value, index) =>
+    React.createElement(Field, {
+      ...props,
+      key: typeof props.item === "function" ? props.item(value, index) : index,
+      children,
+      index,
+      item: false,
+      name: field.path.concat(index),
+    })
+  );
 }
 
 function createValueStore(
